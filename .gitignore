@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+**/dist/
+**/build/
+
+# Environment files (contain secrets)
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript build info
+*.tsbuildinfo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Personal/WhatsApp files
+WhatsApp*/
+*.zip
+
+# IDE
+.vscode/
+.idea/
