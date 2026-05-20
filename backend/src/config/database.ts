@@ -30,14 +30,14 @@ import { BoqItemMaterial } from '../entities/BoqItemMaterial';
 import { ProjectEstimation } from '../entities/ProjectEstimation';
 import { EstimationItem } from '../entities/EstimationItem';
 
+const dbUrl = process.env.DATABASE_URL;
+
 export const AppDataSource = new DataSource({
   type: 'postgres',
-  host: env.db.host,
-  port: env.db.port,
-  database: env.db.name,
-  username: env.db.user,
-  password: env.db.password,
-  ssl: env.db.ssl ? { rejectUnauthorized: false } : false,
+  ...(dbUrl
+    ? { url: dbUrl }
+    : { host: env.db.host, port: env.db.port, database: env.db.name, username: env.db.user, password: env.db.password }),
+  ssl: (dbUrl || env.db.ssl) ? { rejectUnauthorized: false } : false,
   synchronize: env.nodeEnv === 'development',
   logging: env.nodeEnv === 'development',
   entities: [
