@@ -9,7 +9,7 @@ import {
   BeforeUpdate,
   Index,
 } from 'typeorm';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { RefreshToken } from './RefreshToken';
 
 export enum UserRole {
