@@ -30,7 +30,6 @@
     "winston": "^3.13.0"
   },
   "devDependencies": {
-    "@types/bcrypt": "^5.0.2",
     "@types/bcryptjs": "^2.4.6",
     "@types/cors": "^2.8.17",
     "@types/crypto-js": "^4.2.2",
