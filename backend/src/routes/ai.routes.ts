@@ -77,8 +77,9 @@ async function callOpenRouter(model: string, prompt: ReturnType<typeof buildProm
 // Fallback chain: try each model in order, skip on 429/502/503
 const FALLBACK_MODELS = [
   env.openRouter.model,
-  'google/gemma-4-27b-it:free',
-  'google/gemma-4-31b-it:free',
+  'google/gemma-3-27b-it:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-7b-instruct:free',
 ];
 
 function extractError(err: unknown): { status?: number; message: string } {
@@ -118,7 +119,7 @@ router.post('/estimate-budget', async (req: Request, res: Response) => {
       break;
     } catch (err: unknown) {
       lastErr = extractError(err);
-      const retryable = lastErr.status === 429 || lastErr.status === 502 || lastErr.status === 503;
+      const retryable = lastErr.status === 402 || lastErr.status === 429 || lastErr.status === 502 || lastErr.status === 503;
       if (!retryable) break;
     }
   }
