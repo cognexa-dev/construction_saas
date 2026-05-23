@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { logger } from '../utils/logger';
 import { env } from '../config/env';
 
 export class AppError extends Error {
@@ -19,10 +18,8 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ): void {
-  logger.error(`${req.method} ${req.path}`, {
-    error: err.message,
-    stack: env.nodeEnv === 'development' ? err.stack : undefined,
-  });
+  // Always log full error so Railway logs capture it
+  console.error(`[ERROR] ${req.method} ${req.path}`, err.message, err.stack);
 
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
