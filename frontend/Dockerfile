@@ -9,6 +9,4 @@ FROM node:20-alpine
 WORKDIR /app
 RUN npm install -g serve
 COPY --from=builder /app/dist ./dist
-COPY entrypoint.sh ./entrypoint.sh
-RUN chmod +x entrypoint.sh
-CMD ["./entrypoint.sh"]
+CMD ["sh", "-c", "printf 'window.__ENV={VITE_API_BASE_URL:\"%s\"};' \"${VITE_API_BASE_URL:-}\" > /app/dist/env.js && serve -s dist -l ${PORT:-3000}"]
