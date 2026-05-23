@@ -77,9 +77,9 @@ async function callOpenRouter(model: string, prompt: ReturnType<typeof buildProm
 // Fallback chain: try each model in order, skip on 429/502/503
 const FALLBACK_MODELS = [
   env.openRouter.model,
-  'google/gemma-3-27b-it:free',
+  'deepseek/deepseek-chat:free',
+  'deepseek/deepseek-r1:free',
   'meta-llama/llama-3.3-70b-instruct:free',
-  'mistralai/mistral-7b-instruct:free',
 ];
 
 function extractError(err: unknown): { status?: number; message: string } {
