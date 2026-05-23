@@ -94,6 +94,38 @@ function extractError(err: unknown): { status?: number; message: string } {
   return { status, message: raw || message };
 }
 
+function rulesBasedEstimate(params: {
+  projectName: string; projectType: string; builtUpArea: number;
+  floors: number; quality: string; location: string;
+}) {
+  const area = params.builtUpArea;
+  const rateMap: Record<string, { lo: number; hi: number }> = {
+    economy: { lo: 1200, hi: 1500 },
+    standard: { lo: 1500, hi: 2000 },
+    premium: { lo: 2000, hi: 3000 },
+  };
+  const band = rateMap[params.quality.toLowerCase()] ?? rateMap.standard;
+  const ratePerSqft = Math.round((band.lo + band.hi) / 2);
+  const constructionCost = Math.round(area * ratePerSqft);
+  const mepCost = Math.round(constructionCost * 0.13);
+  const finishingCost = Math.round(constructionCost * 0.12);
+  const professionalFees = Math.round(constructionCost * 0.04);
+  const approvalCost = Math.round(constructionCost * 0.03);
+  const contingency = Math.round(constructionCost * 0.05);
+  const totalBudget = constructionCost + mepCost + finishingCost + professionalFees + approvalCost + contingency;
+  return {
+    constructionCost, mepCost, finishingCost, professionalFees,
+    approvalCost, contingency, totalBudget,
+    ratePerSqft: Math.round(totalBudget / area),
+    explanation: `Rule-based estimate for ${params.quality} grade construction in ${params.location}, Gujarat at ₹${ratePerSqft}/sqft (2024-25 market rates). AI models were unavailable; this uses standard industry percentages.`,
+    assumptions: [
+      `${params.quality.charAt(0).toUpperCase() + params.quality.slice(1)} grade finish at ₹${band.lo}–${band.hi}/sqft`,
+      'MEP at 13%, finishing at 12%, contingency at 5% of construction cost',
+      'Gujarat 2024-25 market rates applied',
+    ],
+  };
+}
+
 // POST /api/ai/estimate-budget
 router.post('/estimate-budget', async (req: Request, res: Response) => {
   const { projectName, projectType, builtUpArea, floors, quality, location, notes } = req.body;
@@ -102,63 +134,53 @@ router.post('/estimate-budget', async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: 'Missing required fields: projectName, builtUpArea, floors, quality, location' });
   }
 
-  if (!env.openRouter.apiKey) {
-    return res.status(503).json({ success: false, message: 'OpenRouter API key not configured. Add OPENROUTER_API_KEY to backend .env file.' });
-  }
+  const area = Number(builtUpArea);
+  const numFloors = Number(floors);
 
-  const prompt = buildPrompt({ projectName, projectType: projectType || 'residential', builtUpArea: Number(builtUpArea), floors: Number(floors), quality, location, notes });
+  if (env.openRouter.apiKey) {
+    const prompt = buildPrompt({ projectName, projectType: projectType || 'residential', builtUpArea: area, floors: numFloors, quality, location, notes });
 
-  let response;
-  let usedModel = FALLBACK_MODELS[0];
-  let lastErr: { status?: number; message: string } = { message: 'AI estimation failed.' };
+    let response;
+    let usedModel = FALLBACK_MODELS[0];
 
-  for (const model of FALLBACK_MODELS) {
-    usedModel = model;
-    try {
-      response = await callOpenRouter(model, prompt);
-      break;
-    } catch (err: unknown) {
-      lastErr = extractError(err);
-      const retryable = lastErr.status === 402 || lastErr.status === 429 || lastErr.status === 502 || lastErr.status === 503;
-      if (!retryable) break;
-    }
-  }
-
-  if (!response) {
-    return res.status(500).json({ success: false, message: lastErr.message });
-  }
-
-  try {
-    const content = response.data.choices?.[0]?.message?.content || '';
-
-    // Extract JSON from response (handle cases where model wraps in markdown)
-    const jsonMatch = content.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return res.status(502).json({ success: false, message: 'AI returned an unexpected response format. Try again.' });
-    }
-
-    const estimate = JSON.parse(jsonMatch[0]);
-
-    // Validate required fields
-    const required = ['constructionCost', 'mepCost', 'finishingCost', 'totalBudget', 'ratePerSqft', 'explanation'];
-    for (const field of required) {
-      if (estimate[field] === undefined) {
-        return res.status(502).json({ success: false, message: `AI response missing field: ${field}. Try again.` });
+    for (const model of FALLBACK_MODELS) {
+      usedModel = model;
+      try {
+        response = await callOpenRouter(model, prompt);
+        break;
+      } catch (err: unknown) {
+        const { status } = extractError(err);
+        const retryable = status === 402 || status === 429 || status === 451 || status === 502 || status === 503;
+        if (!retryable) break;
       }
     }
 
-    return res.json({
-      success: true,
-      data: {
-        ...estimate,
-        model: usedModel,
-        inputParams: { projectName, projectType, builtUpArea, floors, quality, location },
-      },
-    });
-  } catch (err: unknown) {
-    const e = err as { message?: string };
-    return res.status(500).json({ success: false, message: e.message || 'Failed to parse AI response.' });
+    if (response) {
+      try {
+        const content = response.data.choices?.[0]?.message?.content || '';
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const estimate = JSON.parse(jsonMatch[0]);
+          const required = ['constructionCost', 'mepCost', 'finishingCost', 'totalBudget', 'ratePerSqft', 'explanation'];
+          if (required.every((f) => estimate[f] !== undefined)) {
+            return res.json({
+              success: true,
+              data: { ...estimate, model: usedModel, inputParams: { projectName, projectType, builtUpArea, floors, quality, location } },
+            });
+          }
+        }
+      } catch {
+        // fall through to rules-based
+      }
+    }
   }
+
+  // Rules-based fallback — always works, no external dependency
+  const estimate = rulesBasedEstimate({ projectName, projectType: projectType || 'residential', builtUpArea: area, floors: numFloors, quality, location });
+  return res.json({
+    success: true,
+    data: { ...estimate, model: 'rules-based', inputParams: { projectName, projectType, builtUpArea, floors, quality, location } },
+  });
 });
 
 export default router;
