@@ -2,8 +2,10 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { useAuthStore } from '@/store/authStore';
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const runtimeApiUrl = (window as any).__ENV?.VITE_API_BASE_URL;
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || '/api/v1',
+  baseURL: runtimeApiUrl || import.meta.env.VITE_API_BASE_URL || '/api/v1',
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
 });
